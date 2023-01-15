@@ -1,40 +1,47 @@
 package hw02unpackstring
 
 import (
-	"fmt"
+	"errors"
 	"strconv"
 	"strings"
 	"unicode"
 )
 
+// ErrInvalidString is returned when the input string is invalid.
+var ErrInvalidString = errors.New("invalid string")
+
+// Unpack returns the unpacked string or an error if the input string is invalid.
 func Unpack(s string) (string, error) {
-	var builder strings.Builder
-	var previousRune rune
-
-	for _, r := range s {
-		if unicode.IsDigit(r) {
-			// If the current rune is a digit, we expect the previous rune
-			// to be repeated the number of times indicated by the digit.
-			if previousRune == 0 {
-				// If the previous rune is not set, it means the string
-				// is not correctly formatted, so we return an error.
-				return "", fmt.Errorf("incorrect string: %s", s)
+	// создаем билдер для формирования результирующей строки
+	var result strings.Builder
+	// итерируем по строке
+	for i := 0; i < len(s); i++ {
+		// если текущий символ является цифрой
+		if unicode.IsDigit(rune(s[i])) {
+			// и если это первый символ в строке или предыдущий символ тоже цифра
+			if i == 0 || unicode.IsDigit(rune(s[i-1])) {
+				// возвращаем ошибку
+				return "", ErrInvalidString
 			}
-
-			// We convert the digit to a number and repeat the previous
-			// rune that number of times.
-			num, err := strconv.Atoi(string(r))
+		}
+		// если следующий символ является цифрой
+		if i+1 < len(s) && unicode.IsDigit(rune(s[i+1])) {
+			// парсим цифру в число
+			count, err := strconv.Atoi(string(s[i+1]))
 			if err != nil {
 				return "", err
 			}
-			builder.WriteString(strings.Repeat(string(previousRune), num))
+			// повторяем текущий символ count раз
+			for j := 0; j < count; j++ {
+				result.WriteByte(s[i])
+			}
+			// пропускаем цифру
+			i++
 		} else {
-			// If the current rune is not a digit, we simply append it
-			// to the string being built.
-			builder.WriteRune(r)
-			previousRune = r
+			// если следующий символ не является цифрой, добавляем текущий символ в результирующую строку
+			result.WriteByte(s[i])
 		}
 	}
-
-	return builder.String(), nil
+	// возвращаем результирующую строку
+	return result.String(), nil
 }
