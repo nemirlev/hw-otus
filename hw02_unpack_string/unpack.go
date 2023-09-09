@@ -21,14 +21,13 @@ func Unpack(s string) (string, error) {
 
 		if curR == '\\' {
 			if isPrevRuneEscaped {
-				prevR = curR
-				isPrevCharDigit = false
 				isPrevRuneEscaped = false
 				result.WriteString(string(curR))
 			} else {
 				isPrevRuneEscaped = true
 			}
 
+			prevR = curR
 			idx += size
 			continue
 		}
@@ -37,7 +36,7 @@ func Unpack(s string) (string, error) {
 			result.WriteString(string(curR))
 			isPrevRuneEscaped = false
 			prevR = curR
-			idx += size // move to next
+			idx += size
 			continue
 		}
 
@@ -45,17 +44,15 @@ func Unpack(s string) (string, error) {
 			if isPrevRuneEscaped {
 				repeatCount, _ := strconv.Atoi(string(curR))
 				result.WriteString(strings.Repeat(string(prevR), repeatCount-1))
-			} else {
-				if nextR == '0' {
-					idx += size
-					prevR = curR
-					isPrevCharDigit = unicode.IsDigit(curR)
-					continue
-				}
-
-				result.WriteString(string(curR))
-				isPrevCharDigit = false
 			}
+
+			if nextR == '0' {
+				idx += size
+				continue
+			}
+
+			result.WriteString(string(curR))
+			isPrevCharDigit = false
 
 			prevR = curR
 		}
@@ -63,7 +60,6 @@ func Unpack(s string) (string, error) {
 		if unicode.IsDigit(curR) {
 			if curR == '0' && !isPrevCharDigit {
 				prevR = curR
-				isPrevCharDigit = unicode.IsDigit(curR)
 				idx += size
 				continue
 			}
@@ -86,7 +82,7 @@ func Unpack(s string) (string, error) {
 			result.WriteString(strings.Repeat(string(prevR), repeatCount-1))
 		}
 
-		idx += size // переходим к следующему символу
+		idx += size
 	}
 
 	return result.String(), nil
