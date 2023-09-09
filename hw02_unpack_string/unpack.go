@@ -1,40 +1,93 @@
 package hw02unpackstring
 
 import (
-	"fmt"
+	"errors"
 	"strconv"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
+var ErrInvalidString = errors.New("invalid string")
+
 func Unpack(s string) (string, error) {
-	var builder strings.Builder
-	var previousRune rune
+	var result strings.Builder
+	var prevR rune
+	var isPrevCharDigit, isPrevRuneEscaped bool
 
-	for _, r := range s {
-		if unicode.IsDigit(r) {
-			// If the current rune is a digit, we expect the previous rune
-			// to be repeated the number of times indicated by the digit.
-			if previousRune == 0 {
-				// If the previous rune is not set, it means the string
-				// is not correctly formatted, so we return an error.
-				return "", fmt.Errorf("incorrect string: %s", s)
+	for idx := 0; idx < len(s); {
+		curR, size := utf8.DecodeRuneInString(s[idx:])    // получаем текущий символ и его размер
+		nextR, _ := utf8.DecodeRuneInString(s[idx+size:]) // получаем следующий символ
+
+		if curR == '\\' {
+			if isPrevRuneEscaped {
+				prevR = curR
+				isPrevCharDigit = false
+				isPrevRuneEscaped = false
+				result.WriteString(string(curR))
+			} else {
+				isPrevRuneEscaped = true
 			}
 
-			// We convert the digit to a number and repeat the previous
-			// rune that number of times.
-			num, err := strconv.Atoi(string(r))
-			if err != nil {
-				return "", err
-			}
-			builder.WriteString(strings.Repeat(string(previousRune), num))
-		} else {
-			// If the current rune is not a digit, we simply append it
-			// to the string being built.
-			builder.WriteRune(r)
-			previousRune = r
+			idx += size
+			continue
 		}
+
+		if isPrevRuneEscaped {
+			result.WriteString(string(curR))
+			isPrevRuneEscaped = false
+			prevR = curR
+			idx += size // move to next
+			continue
+		}
+
+		if unicode.IsLetter(curR) {
+			if isPrevRuneEscaped {
+				repeatCount, _ := strconv.Atoi(string(curR))
+				result.WriteString(strings.Repeat(string(prevR), repeatCount-1))
+			} else {
+				if nextR == '0' {
+					idx += size
+					prevR = curR
+					isPrevCharDigit = unicode.IsDigit(curR)
+					continue
+				}
+
+				result.WriteString(string(curR))
+				isPrevCharDigit = false
+			}
+
+			prevR = curR
+		}
+
+		if unicode.IsDigit(curR) {
+			if curR == '0' && !isPrevCharDigit {
+				prevR = curR
+				isPrevCharDigit = unicode.IsDigit(curR)
+				idx += size
+				continue
+			}
+
+			if isPrevRuneEscaped {
+				isPrevRuneEscaped = false
+				prevR = curR
+				result.WriteString(string(curR))
+				idx += size
+				continue
+			}
+
+			if prevR == 0 || isPrevCharDigit {
+				return "", ErrInvalidString
+			}
+
+			isPrevCharDigit = true
+
+			repeatCount, _ := strconv.Atoi(string(curR))
+			result.WriteString(strings.Repeat(string(prevR), repeatCount-1))
+		}
+
+		idx += size // переходим к следующему символу
 	}
 
-	return builder.String(), nil
+	return result.String(), nil
 }
