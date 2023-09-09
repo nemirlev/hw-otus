@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // ErrInvalidString is returned when the input string is invalid.
@@ -14,34 +15,56 @@ var ErrInvalidString = errors.New("invalid string")
 func Unpack(s string) (string, error) {
 	// создаем билдер для формирования результирующей строки
 	var result strings.Builder
-	// итерируем по строке
-	for i := 0; i < len(s); i++ {
-		// если текущий символ является цифрой
-		if unicode.IsDigit(rune(s[i])) {
-			// и если это первый символ в строке или предыдущий символ тоже цифра
-			if i == 0 || unicode.IsDigit(rune(s[i-1])) {
+	var prev rune
+	var prevIsDigit bool
+
+	// проходим по всем символам входной строки
+	for idx := 0; idx < len(s); {
+		curR, size := utf8.DecodeRuneInString(s[idx:])    // получаем текущий символ и его размер
+		nextR, _ := utf8.DecodeRuneInString(s[idx+size:]) // получаем следующий символ и его размер
+
+		// если текущий символ - буква
+		if unicode.IsLetter(curR) {
+			// если следующий символ - 0, то ничего не делаем
+			if nextR == '0' {
+				idx += size
+				prev = curR
+				prevIsDigit = unicode.IsDigit(curR)
+				continue
+			}
+
+			result.WriteString(string(curR))
+			prevIsDigit = false
+			prev = curR
+		}
+
+		// если текущий символ - цифра
+		if unicode.IsDigit(curR) {
+			// если текущий символ - 0 и предыдущий символ - не цифра, то ничего не делаем
+			if curR == '0' && !prevIsDigit {
+				prev = curR
+				prevIsDigit = unicode.IsDigit(curR)
+				idx += size
+				continue
+			}
+
+			// если это первый символ в строке или предыдущий символ - цифра
+			if prev == 0 || prevIsDigit {
 				// возвращаем ошибку
 				return "", ErrInvalidString
 			}
+
+			// запоминаем, что предыдущий символ - цифра
+			prevIsDigit = true
+
+			// добавляем в результирующую строку повторяющиеся символы
+			repeatCount, _ := strconv.Atoi(string(curR))
+			result.WriteString(strings.Repeat(string(prev), repeatCount-1))
 		}
-		// если следующий символ является цифрой
-		if i+1 < len(s) && unicode.IsDigit(rune(s[i+1])) {
-			// парсим цифру в число
-			count, err := strconv.Atoi(string(s[i+1]))
-			if err != nil {
-				return "", err
-			}
-			// повторяем текущий символ count раз
-			for j := 0; j < count; j++ {
-				result.WriteByte(s[i])
-			}
-			// пропускаем цифру
-			i++
-		} else {
-			// если следующий символ не является цифрой, добавляем текущий символ в результирующую строку
-			result.WriteByte(s[i])
-		}
+
+		idx += size // переходим к следующему символу
 	}
+
 	// возвращаем результирующую строку
 	return result.String(), nil
 }
